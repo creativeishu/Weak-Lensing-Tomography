@@ -18,44 +18,36 @@ class WeakLensingLib(object):
 	Link: http://arxiv.org/pdf/0810.4170v2.pdf
 	'''
 
-	def __init__(self, \
-				CosmoParams=[0.3,0.8,0.7,0.96,0.046,-1.0,0.0,0.0,0.0],\
-				NumberOfBins=1, \
-				z0=1.0/3.0):
+	def __init__(self, NumberOfBins=1, z0=1.0/3.0, \
+					zmin=0.1, zmax=5.0, zdim=100, \
+					kmin = 0.001, kmax=10, kdim=1000, \
+					lmin = 10, lmax=10000, ldim=40, \
+					CosmoParams=[0.3,0.8,0.7,0.96,0.046,-1.0,0.0,0.0,0.0]):
 		"""
 		Doc string of the constructor
 		"""
 
-		# Setting up cosmology
-		#---------------------
 		self.CosmoParams = CosmoParams
-		[self.Omega_m, self.Sigma_8, self.h, self.n_s, self.Omega_b, \
-			self.w0, self.wa, self.Omega_r, self.Omega_k] = self.CosmoParams
-		self.Omega_l = 1.0 - self.Omega_m - self.Omega_r - self.Omega_k
+		self.set_cosmology()
+		self.kmin = kmin
+		self.kmax = kmax
+		self.kdim = kdim
+		self.lmin = lmin
+		self.lmax = lmax
+		self.ldim = ldim
 
 		# Constants
 		#----------
 		self.SpeedOfLight = 299792.458 
-		self.GravitationConstant = 6.6740831e-11
-		self.CriticalDensity = 2.778e11
 
 		# Making Functions for distance redshift relations
 		#-------------------------------------------------
-		self.zArray = np.linspace(0.1, 5.0, 100)
+		self.zArray = np.linspace(zmin, zmax, zdim)
 		self.kiArray = np.zeros((len(self.zArray)))
-		qArray = np.zeros((len(self.zArray)))
 		for i in range(len(self.zArray)):
 			self.kiArray[i] = self.ComovingDistance(self.zArray[i])
 		self.Func_z2ki = interp1d(self.zArray, self.kiArray)
 		self.Func_ki2z = interp1d(self.kiArray, self.zArray)
-
-		# Power Spectrum (Default: Linear)
-		#--------------------
-		self.kArray = 10**np.linspace(-3, 1, 10000)
-		self.PKmatrix = self.PK_linear(self.kArray, self.zArray)
-		self.Func_pkmatrix_interp = interp2d(self.zArray, \
-									self.kArray, self.PKmatrix)
-		# print "min and max of k: ", min(self.kArray), max(self.kArray)
 
 		# Setting up Number of Bins and Bin edges
 		#----------------------------------------
@@ -63,29 +55,66 @@ class WeakLensingLib(object):
 		self.z0 = z0
 		self.binedges_z = self.MakeBins(plot=False)
 		self.binedges_ki = self.Func_z2ki(self.binedges_z)
+		self.nsources_bins = self.n_i_bins()
 
-		# print self.q(1000.0, self.binedges_ki[0], self.binedges_ki[1])
-		# print self.n_i()
-		# exit()
 		# Lensing Weights Matrix
 		#-----------------------
 		self.qMatrix = np.zeros((len(self.zArray), self.NumberOfBins))
-		self.Make_qMatrix(plot=True)
+		self.Make_qMatrix(plot=False)
 
-		exit()
-		# Computing C_ell
-		#----------------
-		self.ellArray = 10**np.linspace(1, 4, 40)
-		self.CellArray = self.CellMatrix(self.ellArray, plot=True)
+#------------------------------------------------------------------------------
+
+	def set_cosmology(self):
+		# Setting up cosmology
+		#---------------------
+		[self.Omega_m, self.Sigma_8, self.h, self.n_s, self.Omega_b, \
+			self.w0, self.wa, self.Omega_r, self.Omega_k] = self.CosmoParams
+		self.Omega_l = 1.0 - self.Omega_m - self.Omega_r - self.Omega_k
 
 #------------------------------------------------------------------------------
 
 	def Func_pkmatrix(self, zz, kk):
-		# if min(self.kArray)<kk<max(self.kArray):
-			return self.Func_pkmatrix_interp(zz, kk)
-		# else:
-			# return self.Func_pkmatrix_interp(zz, 1.0)*kk**(-3)
-			# return 0.0
+		return self.Func_pkmatrix_interp(zz, kk)
+
+#------------------------------------------------------------------------------
+
+	def load_pk(self, mode='linear', plot=False):
+		# Power Spectrum (Default: Linear)
+		#--------------------
+		self.kArray = 10**np.linspace(np.log10(self.kmin), \
+							np.log10(self.kmax), self.kdim)
+		if mode=='linear':
+			self.PKmatrix = self.PK_linear(self.kArray, self.zArray)
+		elif mode=='nonlinear':
+			self.PKmatrix = self.PK_nonlinear(self.kArray, self.zArray)
+		else:
+			print "Current supported modes are: linear, nonlinear"
+			exit()
+		self.Func_pkmatrix_interp = interp2d(self.zArray, \
+									self.kArray, self.PKmatrix)
+		if plot:
+			plt.figure(figsize=(10,6))
+			for i in range(len(self.zArray)):
+				plt.loglog(self.kArray, self.PKmatrix[:,i], 'k', lw=0.5)
+			plt.xlabel('$\mathtt{k\ [h/Mpc]}$', fontsize=22)
+			plt.ylabel('$\mathtt{P(k)\ [Mpc/h]^3}$', fontsize=22)
+			plt.xlim(min(self.kArray), max(self.kArray))
+			plt.show()
+
+#------------------------------------------------------------------------------
+
+	def get_pk(self):
+		return self.kArray, self.zArray, self.PKmatrix
+
+#------------------------------------------------------------------------------
+
+	def PK_linear(self, kk, zz):
+		CPLo = CPL(self.CosmoParams, True)
+		return CPLo.PKL_Camb_MultipleRedshift(kk, zz)
+
+	def PK_nonlinear(self, kk, zz):
+		CPLo = CPL(self.CosmoParams, True)
+		return CPLo.PKNL_CAMB_MultipleRedshift(kk, zz)
 
 #------------------------------------------------------------------------------
 
@@ -123,13 +152,36 @@ class WeakLensingLib(object):
 #------------------------------------------------------------------------------
 
 	def p_s(self, z):
+		"""
+		Refer to paper: https://arxiv.org/pdf/0810.4170.pdf; eqn 20; Sec 4.1
+		z_m = 0.7, 1.0, 1.2, 1.5
+		z0 = z_m / 3
+		n_g = 10, 30 51, 100 arcmin^(-2)
+		survey: DES, Subaru, LSST, SNAP
+		"""
 		return 1.18e9 * 4.0 * z**2 * np.exp(-z/self.z0)
 
 #------------------------------------------------------------------------------
 
 	def n_i(self, z1=0.001, z2=20.0):
+		"""
+		Refer to paper: https://arxiv.org/pdf/0810.4170.pdf; eqn 20; Sec 4.1
+		z_m = 0.7, 1.0, 1.2, 1.5
+		z0 = z_m / 3
+		n_g = 10, 30 51, 100 arcmin^(-2)
+		survey: DES, Subaru, LSST, SNAP
+		"""
 		result = integrate.quad(self.p_s, z1, z2, limit=500)[0]
 		return result
+
+#------------------------------------------------------------------------------
+
+	def n_i_bins(self):
+		nsources_bins = np.zeros((self.NumberOfBins))
+		for i in range(self.NumberOfBins):
+			nsources_bins[i] = self.n_i(self.binedges_z[i], \
+								self.binedges_z[i+1])
+		return nsources_bins
 
 #------------------------------------------------------------------------------
 
@@ -159,7 +211,8 @@ class WeakLensingLib(object):
 #------------------------------------------------------------------------------
 
 	def _q(self, zs, z):
-		return self.p_s(zs) * (self.Func_z2ki(zs) - self.Func_z2ki(z)) / \
+		return self.p_s(zs) * \
+				(self.Func_z2ki(zs) - self.Func_z2ki(z)) / \
 	    		self.Func_z2ki(zs)
 
 	def q(self, chi, chi1, chi2):
@@ -179,7 +232,9 @@ class WeakLensingLib(object):
 	def Make_qMatrix(self, plot=False):
 		if plot:
 			plt.figure(figsize=(10,6))
-			plt.axvline(x=self.binedges_z[0], color='k', ls=':', lw=0.5)		
+			plt.axvline(x=self.binedges_z[0], color='k', ls=':', lw=0.5)
+
+
 		for i in range(self.NumberOfBins):
 			for j in range(len(self.zArray)):
 				self.qMatrix[j,i] = self.q(self.kiArray[j], \
@@ -199,12 +254,6 @@ class WeakLensingLib(object):
 
 #------------------------------------------------------------------------------
 
-	def PK_linear(self, kk, zz):
-		CPLo = CPL(self.CosmoParams, True)
-		return CPLo.PKL_Camb_MultipleRedshift(kk, zz)
-
-#------------------------------------------------------------------------------
-
 	def _Cell(self, chi, ell, bin1, bin2):
 		zz = self.Func_ki2z(chi)
 		integrand = np.interp(zz, self.zArray, \
@@ -214,6 +263,8 @@ class WeakLensingLib(object):
 					self.Func_pkmatrix(zz, ell/chi) / chi**2				
 		return integrand
 
+#------------------------------------------------------------------------------
+
 	def Cell(self, ell, bin1, bin2):
 		chimin = min(self.kiArray)
 		chimax = max(self.kiArray)
@@ -221,9 +272,9 @@ class WeakLensingLib(object):
 		for i in range(len(self.kiArray)-1):
 			result += self._Cell(self.kiArray[i], ell, bin1, bin2) * \
 							(self.kiArray[i+1] - self.kiArray[i])
-		# result = integrate.romberg(self._Cell, chimin, chimax, \
-					# args=tuple([ell, bin1, bin2]), divmax=100)
 		return result
+
+#------------------------------------------------------------------------------
 
 	def CellVector(self, ell, bin1, bin2):
 		cc = np.zeros((len(ell)))
@@ -231,7 +282,10 @@ class WeakLensingLib(object):
 			cc[i] = self.Cell(ell[i], bin1, bin2)
 		return cc
 
-	def CellMatrix(self, ell, plot=True):
+#------------------------------------------------------------------------------
+
+	def CellMatrix(self, ell, mode='linear', plot=False):
+		self.load_pk(mode=mode, plot=plot)
 		CellArray = np.zeros((self.NumberOfBins, self.NumberOfBins, len(ell)))
 		for i in range(self.NumberOfBins):
 			for j in range(i, self.NumberOfBins):
@@ -242,18 +296,30 @@ class WeakLensingLib(object):
 							ls = '-'
 						else:
 							ls='--'
-						plt.loglog(self.ellArray, \
-							CellArray[i,j,:] * self.ellArray * \
-										(self.ellArray+1)/2.0/np.pi, \
+						plt.loglog(ell, \
+							CellArray[i,j,:] * ell * \
+										(ell+1)/2.0/np.pi, \
 							ls=ls, label='%i, %i'%(i,j))
 		if plot:
 			plt.legend(loc=2, fontsize=14)
-			plt.ylim(4e-6, 7e-5)
-			plt.xlim(50, 50000)
+			plt.xlim(min(ell), max(ell))
+			plt.xlabel('$\mathtt{\ell}$', fontsize=22)
+			plt.ylabel('$\mathtt{C_{\ell}}$', fontsize=22)
 			plt.show()
 		return CellArray
+
+#------------------------------------------------------------------------------
+
+	def compute_cell(self, mode='linear', plot=False):
+		self.ellArray = 10**np.linspace(np.log10(self.lmin), \
+								np.log10(self.lmax), self.ldim)
+		self.CellArray = self.CellMatrix(self.ellArray, mode=mode, plot=plot)
+		return self.ellArray ,self.CellArray
 
 #==============================================================================
 
 if __name__=="__main__":
-	co = WeakLensingLib()
+	co = WeakLensingLib(NumberOfBins=1)
+	# ell = 10**np.linspace(1, 5, 40)
+	# cell = co.CellMatrix(ell, mode='linear', plot=True)
+	ell, cell = co.compute_cell('nonlinear', True)
