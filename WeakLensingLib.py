@@ -20,7 +20,7 @@ class WeakLensingLib(object):
 
 	def __init__(self, \
 				CosmoParams=[0.3,0.8,0.7,0.96,0.046,-1.0,0.0,0.0,0.0],\
-				NumberOfBins=3, \
+				NumberOfBins=1, \
 				z0=0.5):
 		"""
 		Doc string of the constructor
@@ -166,7 +166,7 @@ class WeakLensingLib(object):
 			z2 = self.Func_ki2z(chi2)
 			result = integrate.quad(self._q, max(zz, z1), z2, \
 									args=tuple([zz]), limit=500)[0]
-			return result * 1.5 * self.h * 1e4 * self.Omega_m / \
+			return result * 1.5 * 1e4 * self.Omega_m / \
 		    		self.SpeedOfLight**2 * chi * (1.0+zz) /self.n_i(z1, z2)
 
 #------------------------------------------------------------------------------
@@ -195,13 +195,7 @@ class WeakLensingLib(object):
 						(self.qMatrix[:, bin1])) * \
 					np.interp(zz, self.zArray, \
 						(self.qMatrix[:, bin2])) * \
-					self.Func_pkmatrix(zz, ell/chi) / chi**2
-
-		# integrand = 10**np.interp(zz, self.zArray, \
-		# 				np.log10(self.qMatrix[:, bin1])) * \
-		# 			10**np.interp(zz, self.zArray, \
-		# 				np.log10(self.qMatrix[:, bin2])) * \
-		# 			self.Func_pkmatrix(zz, ell/chi) / chi**2					
+					self.Func_pkmatrix(zz, ell/chi) / chi**2				
 		return integrand
 
 	def Cell(self, ell, bin1, bin2):
@@ -238,6 +232,8 @@ class WeakLensingLib(object):
 							ls=ls, label='%i, %i'%(i,j))
 		if plot:
 			plt.legend(loc=2, fontsize=14)
+			plt.ylim(4e-6, 7e-5)
+			plt.xlim(50, 50000)
 			plt.show()
 		return CellArray
 
