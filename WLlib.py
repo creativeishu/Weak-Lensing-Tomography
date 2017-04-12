@@ -188,21 +188,21 @@ class WeakLensingLib(object):
 #------------------------------------------------------------------------------
 
 	def ComovingDistance(self, z=1.0):
-		# Returns Comoving distance in Units Mpc/h
+		# Returns Comoving distance in Units Mpc
 		func = lambda zz: 1.0/self.Ez(zz)
 		ki = integrate.romberg(func, 0.0, z)
-		return ki * self.SpeedOfLight / (100.0)
+		return ki * self.SpeedOfLight / (self.h * 100.0)
 
 #------------------------------------------------------------------------------
 
 	def AngularDiameterDistance(self, z=1.0):
-		# Returns Angular Diameter distance in Units Mpc/h
+		# Returns Angular Diameter distance in Units Mpc
 		return self.ComovingDistance(z)/(1.0+z)
 
 #------------------------------------------------------------------------------
 
 	def LuminosityDistance(self, z=1.0):
-		# Returns Luminosity distance in Units Mpc/h
+		# Returns Luminosity distance in Units Mpc
 		return self.ComovingDistance(z) * (1.0+z)
 
 #------------------------------------------------------------------------------
@@ -296,7 +296,7 @@ class WeakLensingLib(object):
 				result += self._q(zintarray[i], zz) * zbin
 			# result = integrate.quad(self._q, max(zz, z1), z2, \
 									# args=tuple([zz]), limit=500)[0]
-			return result * 1.5 * 1e4 * self.Omega_m / \
+			return result * 1.5 * (self.h * 100)**2 * self.Omega_m / \
 		    		self.SpeedOfLight**2 * chi * (1.0+zz) /self.n_i(z1, z2)
 
 #------------------------------------------------------------------------------
@@ -426,9 +426,7 @@ class WeakLensingLib(object):
 
 if __name__=="__main__":
 	co = WeakLensingLib(NumberOfBins=1, nskip=1)
-	# co.load_pk(mode='custom', plot=False)
-	# print co.Cell(500, 0, 0)
-	# ell, c_cu = co.compute_cell('custom', plot=True)
 	ell, c_l = co.compute_cell('linear', plot=True)
-	# ell, c_nl = co.compute_cell('nonlinear', plot=True)
+	ell, c_nl = co.compute_cell('nonlinear', plot=True)
+	ell, c_cu = co.compute_cell('custom', plot=True)
 	
