@@ -34,6 +34,9 @@ class WeakLensingLib(object):
 
 		self.CosmoParams = CosmoParams
 		self.set_cosmology()
+		self.zmin = zmin
+		self.zmax = zmax
+		self.zdim = zdim
 		self.kmin = kmin
 		self.kmax = kmax
 		self.kdim = kdim
@@ -41,6 +44,7 @@ class WeakLensingLib(object):
 		self.lmax = lmax
 		self.ldim = ldim
 		self.nskip = nskip
+		self.log_lbin = (self.lmax - self.lmin) / self.ldim
 
 		# Constants
 		#----------
@@ -48,7 +52,7 @@ class WeakLensingLib(object):
 
 		# Making Functions for distance redshift relations
 		#-------------------------------------------------
-		self.zArray = np.linspace(zmin, zmax, zdim)
+		self.zArray = np.linspace(self.zmin, self.zmax, self.zdim)
 		self.kiArray = np.zeros((len(self.zArray)))
 		for i in range(len(self.zArray)):
 			self.kiArray[i] = self.ComovingDistance(self.zArray[i])
@@ -124,13 +128,20 @@ class WeakLensingLib(object):
 
 	def PK_customfolder(self, kk, zz, \
 		 DIR='/Users/mohammed/Dropbox/fermilabwork/with_gnedin/sim1/PK/'):
+		print "=========================================================="
+		print "Reading files from: ", DIR
+		print "Skipping every %i files"%(self.nskip-1)
+		print "=========================================================="
 		filenames = glob(DIR+'*.pk')
 		pk = []
 		k = []
 		N = []
 		z = []
+		self.nfiles = 0
 		for i in range((len(filenames)-1)%self.nskip, \
 									len(filenames), self.nskip):
+			print i, filenames[i]		
+			self.nfiles += 1
 			name = filenames[i].replace(DIR, '')
 			name = name.replace('matter_power_a=', '')
 			name = float(name.replace('.pk', ''))
@@ -139,6 +150,9 @@ class WeakLensingLib(object):
 			pk.append(data[:,2])
 			k.append(data[:,1])
 			N.append(data[:,3])
+		print "=========================================================="
+		print "Total number of files used: ", self.nfiles
+		print "=========================================================="		
 		k = np.mean(np.array(k), axis=0)
 		pk = np.array(pk)
 		pk = np.transpose(pk)
@@ -386,9 +400,14 @@ class WeakLensingLib(object):
 
 		for j1 in range(self.NumberOfBins):
 		    for j2 in range(j1,self.NumberOfBins):
-		        axarr[j2,j1].loglog(self.ellArray, self.CellArray[j1,j2,:]* \
-		        					self.ellArray*(self.ellArray+1)/2.0/np.pi)
-
+				axarr[j2,j1].loglog(self.ellArray, self.CellArray[j1,j2,:]* \
+		        					self.ellArray*(self.ellArray+1)/2.0/np.pi, \
+		        					'ok-', ms=8, lw=1)
+				if j1==j2:
+					maxl = self.kmax * self.binedges_ki[j1+1]
+					minl = self.kmin * self.binedges_ki[j1]
+					axarr[j2,j1].axvline(x=maxl, color='k', ls=':', lw=0.5)
+					axarr[j2,j1].axvline(x=minl, color='k', ls=':', lw=0.5)
 		f.text(0.5, 0.07, '$\mathtt{\ell}$', ha='center', fontsize=33)
 		f.text(0.04, 0.5, '$\mathtt{C_{\ell}}$', va='center', \
 						rotation='vertical', fontsize=33)	
@@ -406,8 +425,10 @@ class WeakLensingLib(object):
 #==============================================================================
 
 if __name__=="__main__":
-	co = WeakLensingLib(NumberOfBins=3)
-	ell, c_cu = co.compute_cell('custom', plot=True)
+	co = WeakLensingLib(NumberOfBins=1, nskip=1)
+	# co.load_pk(mode='custom', plot=False)
+	# print co.Cell(500, 0, 0)
+	# ell, c_cu = co.compute_cell('custom', plot=True)
 	ell, c_l = co.compute_cell('linear', plot=True)
-	ell, c_nl = co.compute_cell('nonlinear', plot=True)
+	# ell, c_nl = co.compute_cell('nonlinear', plot=True)
 	
