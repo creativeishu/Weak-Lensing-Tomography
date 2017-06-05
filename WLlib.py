@@ -27,7 +27,7 @@ class WeakLensingLib(object):
 					kmin = 0.001, kmax=100, kdim=1000, \
 					lmin = 10, lmax=50000, ldim=40, \
 					CosmoParams=[0.3,0.8,0.7,0.96,0.046,-1.0,0.0,0.0,0.0], \
-					nskip=1):
+					mode='linear', nskip=1, pkfiles_string='*.pk'):
 		"""
 		Doc string of the constructor
 		"""
@@ -45,6 +45,8 @@ class WeakLensingLib(object):
 		self.ldim = ldim
 		self.nskip = nskip
 		self.log_lbin = (self.lmax - self.lmin) / self.ldim
+		self.mode = mode
+		self.pkfiles_string = pkfiles_string
 
 		# Constants
 		#----------
@@ -88,16 +90,16 @@ class WeakLensingLib(object):
 
 #------------------------------------------------------------------------------
 
-	def load_pk(self, mode='linear', plot=False):
+	def load_pk(self, plot=False):
 		# Power Spectrum (Default: Linear)
 		#--------------------
 		self.kArray = 10**np.linspace(np.log10(self.kmin), \
 							np.log10(self.kmax), self.kdim)
-		if mode=='linear':
+		if self.mode=='linear':
 			self.PKmatrix = self.PK_linear(self.kArray, self.zArray)
-		elif mode=='nonlinear':
+		elif self.mode=='nonlinear':
 			self.PKmatrix = self.PK_nonlinear(self.kArray, self.zArray)
-		elif mode=='custom':
+		elif self.mode=='custom':
 			self.PKmatrix = self.PK_customfolder(self.kArray, self.zArray)			
 		else:
 			print "Current supported modes are: linear, nonlinear"
@@ -126,30 +128,30 @@ class WeakLensingLib(object):
 
 #------------------------------------------------------------------------------
 
-	def PK_customfolder(self, kk, zz, \
-		 DIR='/Users/mohammed/Dropbox/fermilabwork/with_gnedin/sim1/PK/'):
+	def PK_customfolder(self, kk, zz):
 		print "=========================================================="
-		print "Reading files from: ", DIR
+		print "Reading files from: ", self.pkfiles_string
 		print "Skipping every %i files"%(self.nskip-1)
 		print "=========================================================="
-		filenames = glob(DIR+'*.pk')
+		filenames = glob(self.pkfiles_string)
 		pk = []
 		k = []
 		N = []
 		z = []
 		self.nfiles = 0
+		print len(filenames)
 		for i in range((len(filenames)-1)%self.nskip, \
 									len(filenames), self.nskip):
-			print i, filenames[i]		
 			self.nfiles += 1
-			name = filenames[i].replace(DIR, '')
-			name = name.replace('matter_power_a=', '')
-			name = float(name.replace('.pk', ''))
+			name = filenames[i].split('/')[-1]
+			name = name.split('a=')[1]
+			name = float(name.replace('.dat', ''))
 			z.append(1.0/name - 1)
+			print i, filenames[i]
 			data = np.genfromtxt(filenames[i], skip_header=2)
-			pk.append(data[:,2])
-			k.append(data[:,1])
-			N.append(data[:,3])
+			pk.append(data[:,1])
+			k.append(data[:,0])
+			N.append(data[:,2])
 		print "=========================================================="
 		print "Total number of files used: ", self.nfiles
 		print "=========================================================="		
@@ -157,6 +159,9 @@ class WeakLensingLib(object):
 		pk = np.array(pk)
 		pk = np.transpose(pk)
 		z = np.array(z)
+		# print z
+		# print k
+		# print pk
 		func = interp2d(z, k, pk)
 		return func(zz, kk)
 
@@ -357,8 +362,8 @@ class WeakLensingLib(object):
 
 #------------------------------------------------------------------------------
 
-	def CellMatrix(self, ell, mode='linear', plotpk = False, plot=False):
-		self.load_pk(mode=mode, plot=plotpk)
+	def CellMatrix(self, ell, plotpk = False, plot=False):
+		self.load_pk(plot=plotpk)
 		CellArray = np.zeros((self.NumberOfBins, self.NumberOfBins, len(ell)))
 		for i in range(self.NumberOfBins):
 			for j in range(i, self.NumberOfBins):
@@ -415,18 +420,20 @@ class WeakLensingLib(object):
 
 #------------------------------------------------------------------------------
 
-	def compute_cell(self, mode='linear', plotpk=False, plot=False):
+	def compute_cell(self, plotpk=False, plot=False):
 		self.ellArray = 10**np.linspace(np.log10(self.lmin), \
 								np.log10(self.lmax), self.ldim)
-		self.CellArray = self.CellMatrix(self.ellArray, mode=mode, \
+		self.CellArray = self.CellMatrix(self.ellArray, \
 												plotpk=plotpk, plot=plot)
 		return self.ellArray ,self.CellArray
 
 #==============================================================================
 
 if __name__=="__main__":
-	co = WeakLensingLib(NumberOfBins=1, nskip=1)
-	ell, c_l = co.compute_cell('linear', plot=True)
-	ell, c_nl = co.compute_cell('nonlinear', plot=True)
-	ell, c_cu = co.compute_cell('custom', plot=True)
+	from sys import argv
+	string = '/Users/mohammed/Dropbox/fermilabwork/with_gnedin/data_ch/ch/10/a/psM*.dat'
+	co = WeakLensingLib(NumberOfBins=1, nskip=1, mode='custom', pkfiles_string=string)
+	# ell, c_l = co.compute_cell('linear', plot=True)
+	# ell, c_nl = co.compute_cell('nonlinear', plot=True)
+	ell, c_cu = co.compute_cell(plot=True)
 	
